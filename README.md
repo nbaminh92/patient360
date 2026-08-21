@@ -10,7 +10,7 @@ This repository demonstrates **multiple approaches** to solving the same data en
 
 ## 📦 Two Implementations
 
-### 1️⃣ **Production Pipeline** (`pipeline_v1/`)
+### 1️⃣ **Production Pipeline** (`StreamingTable-example/`)
 **Lakeflow Spark Declarative Pipelines** - Production-grade declarative framework
 
 **Use When:**
@@ -29,7 +29,7 @@ This repository demonstrates **multiple approaches** to solving the same data en
 
 **Professional Exam Focus**: Production operations, reliability patterns, governance
 
-### 2️⃣ **Educational Examples** (`examples/`)
+### 2️⃣ **Educational Examples** (`AutoLoader-ingestion-example/`)
 **Step-by-Step Notebooks** - Traditional Bronze → Silver → Gold progression
 
 **Use When:**
@@ -101,7 +101,7 @@ SOURCE (CSV) → BRONZE (Raw + Validation) → SILVER (Cleansed + Deduplicated) 
 ## 📚 Educational Examples Structure
 
 ```
-examples/
+AutoLoader-ingestion-example/
 ├── bronze/
 │   ├── 01_Bronze_Patient_Ingestion.ipynb       # Auto Loader setup
 │   └── 01_Bronze_Observation_Ingestion.py      # CSV ingestion pattern
@@ -141,12 +141,12 @@ examples/
 > *"Your team needs to build a healthcare data pipeline. The business requires real-time data quality monitoring, automatic error handling, and audit trails. However, your data scientists also need flexibility to experiment with transformations. Which architecture would you recommend and why?"*
 
 **Answer Using This Repo:**
-1. **Production Workload** → Lakeflow Spark Declarative Pipelines (`pipeline_v1/`)
+1. **Production Workload** → Lakeflow Spark Declarative Pipelines (`StreamingTable-example/`)
    - Built-in expectations for data quality
    - Automatic dependency management
    - Better for reliability and governance
 
-2. **Experimentation** → Traditional notebooks (`examples/`)
+2. **Experimentation** → Traditional notebooks (`AutoLoader-ingestion-example/`)
    - Full control over transformations
    - Easier debugging and iteration
    - Better for prototyping
@@ -174,12 +174,12 @@ examples/
 
 1. **Import Pipeline:**
    - Navigate to: Workflows → Lakeflow Pipelines → Create Pipeline
-   - Point to: `pipeline_v1/transformations/`
+   - Point to: `StreamingTable-example/transformations/`
    - Set target catalog: `healthcare`
    - Click "Create"
 
 2. **Configure Monitoring:**
-   - Import: `pipeline_v1/explorations/Pipeline_Monitoring_Dashboard.py`
+   - Import: `StreamingTable-example/explorations/Pipeline_Monitoring_Dashboard.py`
    - Create daily job
    - Configure email alerts
 
@@ -191,18 +191,18 @@ examples/
 ### Educational Examples
 
 1. **Run Bronze Layer:**
-   - Open: `examples/bronze/01_Bronze_Patient_Ingestion.ipynb`
+   - Open: `AutoLoader-ingestion-example/bronze/01_Bronze_Patient_Ingestion.ipynb`
    - Attach compute cluster
    - Run all cells
    - Verify Bronze table creation
 
 2. **Run Silver Layer:**
-   - Open: `examples/silver/02_Patient_AutoLoader.ipynb`
+   - Open: `AutoLoader-ingestion-example/silver/02_Patient_AutoLoader.ipynb`
    - Run transformations
    - Check deduplication results
 
 3. **Run Gold Layer:**
-   - Open: `examples/gold/04_Gold_Comprehensive_Metrics.py`
+   - Open: `AutoLoader-ingestion-example/gold/04_Gold_Comprehensive_Metrics.py`
    - Execute aggregations
    - Validate business metrics
 
@@ -244,10 +244,10 @@ These are **append-only** datasets without deduplication needs. Streaming tables
 
 #### Silver Layer: Deduplication Strategies
 ```sql
--- Window function approach (examples/)
+-- Window function approach (AutoLoader-ingestion-example/)
 ROW_NUMBER() OVER (PARTITION BY Id ORDER BY _src_file_ts DESC) = 1
 
--- Declarative approach (pipeline_v1/)
+-- Declarative approach (StreamingTable-example/)
 CREATE MATERIALIZED VIEW patients_silver AS
 SELECT * FROM (
   SELECT *, ROW_NUMBER() OVER (...) as rn FROM patients_bronze
@@ -343,7 +343,7 @@ LIMIT 20;
 **Question:** *"Your team needs to process healthcare observations in real-time with strict data quality requirements. Which architecture would you choose?"*
 
 **Answer:**
-- **Lakeflow Spark Declarative Pipelines** (`pipeline_v1/`)
+- **Lakeflow Spark Declarative Pipelines** (`StreamingTable-example/`)
 - **Rationale:**
   - Built-in expectations framework for data quality
   - Streaming tables for real-time processing
@@ -389,7 +389,7 @@ patient360/                                      # Git repository
 ├── ARCHITECTURE.md                              # Design decisions (16KB)
 ├── .gitignore                                   # Python, Databricks exclusions
 │
-├── pipeline_v1/                                 # Production Pipeline (SDP)
+├── StreamingTable-example/                                 # Production Pipeline (SDP)
 │   ├── transformations/
 │   │   ├── bronze/
 │   │   │   ├── patients.py                     # 5 expectations
@@ -402,7 +402,7 @@ patient360/                                      # Git repository
 │   └── explorations/
 │       └── Pipeline_Monitoring_Dashboard.py    # 6 operational metrics
 │
-└── examples/                                    # Educational Examples
+└── AutoLoader-ingestion-example/                                    # Educational Examples
     ├── bronze/
     │   ├── 01_Bronze_Patient_Ingestion.ipynb   # Auto Loader setup
     │   └── 01_Bronze_Observation_Ingestion.py  # CSV ingestion

@@ -20,7 +20,7 @@ By working through these examples, you'll understand:
 ### Step 1: Bronze Layer - Raw Ingestion
 
 #### 1a. Patient Data Ingestion
-**File:** `examples/bronze/01_Bronze_Patient_Ingestion.ipynb`
+**File:** `AutoLoader-ingestion-example/bronze/01_Bronze_Patient_Ingestion.ipynb`
 
 **What It Demonstrates:**
 - Auto Loader configuration for CSV files
@@ -43,7 +43,7 @@ By working through these examples, you'll understand:
 ---
 
 #### 1b. Observation Data Ingestion
-**File:** `examples/bronze/01_Bronze_Observation_Ingestion.py`
+**File:** `AutoLoader-ingestion-example/bronze/01_Bronze_Observation_Ingestion.py`
 
 **What It Demonstrates:**
 - Batch CSV ingestion at scale (114K+ records)
@@ -67,7 +67,7 @@ By working through these examples, you'll understand:
 ### Step 2: Silver Layer - Data Cleaning & Transformation
 
 #### 2a. Patient Auto Loader (Incremental)
-**File:** `examples/silver/02_Patient_AutoLoader.ipynb`
+**File:** `AutoLoader-ingestion-example/silver/02_Patient_AutoLoader.ipynb`
 
 **What It Demonstrates:**
 - Incremental processing from Bronze to Silver
@@ -89,7 +89,7 @@ By working through these examples, you'll understand:
 ---
 
 #### 2b. Patient Deduplication
-**File:** `examples/silver/03_Silver_Patient_Transform.py`
+**File:** `AutoLoader-ingestion-example/silver/03_Silver_Patient_Transform.py`
 
 **What It Demonstrates:**
 - Window function deduplication strategy
@@ -114,7 +114,7 @@ ROW_NUMBER() OVER (
 ---
 
 #### 2c. Observation Data Cleaning
-**File:** `examples/silver/03_Silver_Observation_Transform.py`
+**File:** `AutoLoader-ingestion-example/silver/03_Silver_Observation_Transform.py`
 
 **What It Demonstrates:**
 - Data type conversions
@@ -139,7 +139,7 @@ ROW_NUMBER() OVER (
 ### Step 3: Gold Layer - Business Aggregations
 
 #### 3a. Comprehensive Patient Metrics
-**File:** `examples/gold/04_Gold_Comprehensive_Metrics.py`
+**File:** `AutoLoader-ingestion-example/gold/04_Gold_Comprehensive_Metrics.py`
 
 **What It Demonstrates:**
 - Patient 360° view (joining multiple entities)
@@ -166,16 +166,16 @@ ROW_NUMBER() OVER (
 
 ```bash
 # 1. Bronze Layer - Ingest raw data
-Run: examples/bronze/01_Bronze_Patient_Ingestion.ipynb
-Run: examples/bronze/01_Bronze_Observation_Ingestion.py
+Run: AutoLoader-ingestion-example/bronze/01_Bronze_Patient_Ingestion.ipynb
+Run: AutoLoader-ingestion-example/bronze/01_Bronze_Observation_Ingestion.py
 
 # 2. Silver Layer - Clean and transform
-Run: examples/silver/02_Patient_AutoLoader.ipynb
-Run: examples/silver/03_Silver_Patient_Transform.py
-Run: examples/silver/03_Silver_Observation_Transform.py
+Run: AutoLoader-ingestion-example/silver/02_Patient_AutoLoader.ipynb
+Run: AutoLoader-ingestion-example/silver/03_Silver_Patient_Transform.py
+Run: AutoLoader-ingestion-example/silver/03_Silver_Observation_Transform.py
 
 # 3. Gold Layer - Business aggregations
-Run: examples/gold/04_Gold_Comprehensive_Metrics.py
+Run: AutoLoader-ingestion-example/gold/04_Gold_Comprehensive_Metrics.py
 
 # 4. Validation queries
 # See "Sample Queries" section below
@@ -352,7 +352,7 @@ ORDER BY patient_count DESC;
 
 ## 🔄 Comparison with Production Pipeline
 
-| Aspect | Educational Examples | Production Pipeline (pipeline_v1) |
+| Aspect | Educational Examples | Production Pipeline (StreamingTable-example) |
 |--------|---------------------|----------------------------------|
 | **Code Style** | Imperative (explicit DataFrames) | Declarative (table definitions) |
 | **Data Quality** | Manual validation queries | Built-in expectations framework |
@@ -388,7 +388,7 @@ After running all examples:
 ## 🎯 Next Steps
 
 1. **Run all examples** in order (Bronze → Silver → Gold)
-2. **Compare with production pipeline** (`pipeline_v1/`)
+2. **Compare with production pipeline** (`StreamingTable-example/`)
 3. **Try variations:**
    - Different deduplication logic
    - Additional data quality checks
@@ -405,4 +405,4 @@ After running all examples:
 
 ---
 
-**Ready to dive in?** Start with `examples/bronze/01_Bronze_Patient_Ingestion.ipynb`! 🚀
+**Ready to dive in?** Start with `AutoLoader-ingestion-example/bronze/01_Bronze_Patient_Ingestion.ipynb`! 🚀
