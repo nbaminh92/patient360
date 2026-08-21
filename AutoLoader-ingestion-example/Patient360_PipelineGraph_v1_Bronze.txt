@@ -1,0 +1,196 @@
+
+════════════════════════════════════════════════════════════════════════════════
+                        PATIENT360 COMPLETE PIPELINE GRAPH
+                    (Professional-Level Medallion Architecture)
+════════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 0: SOURCE DATA (Unity Catalog Volume)                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    📁 /Volumes/healthcare/bronze/raw_files/
+         ├─ patient.csv         (113 records)
+         └─ observation.csv     (new entity)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 1: BRONZE - Raw Ingestion (Auto Loader Pattern)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    🔔 FILE ARRIVAL TRIGGER
+        Watch: /Volumes/healthcare/bronze/raw_files/
+        Wait: 300s after last change
+        
+    📦 JOB: Patient360_Bronze Auto Loader (ID: 203036644461754)
+    ├─────────────────────────────────────────────────────────────────┐
+    │                                                                 │
+    │   ┌──────────────────────┐        ┌──────────────────────┐      │
+    │   │ Task: ingest_patients│        │Task: ingest_observations│   │
+    │   │ ⏱ Runtime: ~38s     │        │ ⏱ Runtime: TBD       │     │
+    │   │ Retry: 1 attempt     │        │ Retry: 1 attempt     │      │
+    │   │ Email: ✅            │        │ Email: ✅            │     │
+    │   └──────────┬───────────┘        └──────────┬───────────┘      │
+    │              │                               │                  │
+    │              ▼                               ▼                  │
+    │   📊 bronze.patient_raw         📊 bronze.observation_raw      │
+    │      Schema: Auto-inferred          Schema: Auto-inferred       │
+    │      Format: Delta                  Format: Delta               │
+    │      Mode: Append                   Mode: Append                │
+    │                                                                 │
+    └─────────────────────────────────────────────────────────────────┘
+              │                                      │
+              └───────────────┬──────────────────────┘
+                              │
+                        Both Complete
+                              │
+                              ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 2: SILVER - Cleaned & Typed (Type-Safe Transformations)               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ⏰ SCHEDULED TRIGGER: Daily at 2:00 AM (Australia/Sydney)
+    
+    📦 JOB: Patient360_Silver_Transform (ID: 297943093918080)
+    ├────────────────────────────────────────────────────────────────┐
+    │                                                                │
+    │   ┌──────────────────────────────────────────────────────┐     │
+    │   │ Task: silver_transform                               │     │
+    │   │                                                      │     │
+    │   │ Notebook: 03_Silver_Patient_Transform                │     │
+    │   │                                                      │     │
+    │   │ Transformations:                                     │     │
+    │   │  ✅ try_cast() for type safety                       │     │
+    │   │  ✅ Deduplication (ROW_NUMBER on Id)                 │     │
+    │   │  ✅ Quality flags (missing_birthdate, etc)           │     │
+    │   │  ✅ Age calculations (years_old, age_at_death)       │     │
+    │   │  ✅ Schema validation                                │     │
+    │   │  ✅ Preview before write (defensive pattern)         │     │
+    │   │                                                      │     │
+    │   └────────────────────────┬─────────────────────────────┘     │
+    │                            │                                   │
+    │                            ▼                                   │
+    │               📊 silver.patients                               │
+    │                  Records: 113 (100% clean)                      │
+    │                  Quality: No issues                             │
+    │                  Format: Delta (optimized)                      │
+    │                  Features: Z-ordered, OPTIMIZE                  │
+    │                                                                 │
+    └─────────────────────────────────────────────────────────────────┘
+                              │
+                    TABLE UPDATE DETECTED ⚡
+                              │
+                              ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 3: GOLD - Business Metrics (Dimensional & KPI Tables)                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ⚡ EVENT-DRIVEN TRIGGER: When silver.patients is updated
+    
+    📦 JOB: Patient360_Gold_Metrics (ID: 565287339316173)
+    ├─────────────────────────────────────────────────────────────────┐
+    │                                                                 │
+    │   ┌──────────────────────────────────────────────────────┐      │
+    │   │ Task: gold_metrics                                   │      │
+    │   │                                                      │      │
+    │   │ Notebook: 04_Gold_Patient_Metrics                    │      │
+    │   │                                                      │      │
+    │   └────────────────────────┬─────────────────────────────┘      │
+    │                            │                                    │
+    │                            ▼                                    │
+    │              ┌─────────────────────────┐                        │
+    │              │    4 GOLD TABLES        │                        │
+    │              └─────────────────────────┘                        │
+    │                            │                                    │
+    │           ┌────────────────┼────────────────┬─────────┐         │
+    │           │                │                │         │         │
+    │           ▼                ▼                ▼         ▼         │
+    │  ┌────────────────┐ ┌────────────┐ ┌──────────┐ ┌─────────┐ 	  │
+    │  │ demographics   │ │ financial  │ │ lifetime │ │ quality │ 	  │
+    │  │   _summary     │ │  _metrics  │ │_analytics│ │_metrics │ 	  │
+    │  └────────────────┘ └────────────┘ └──────────┘ └─────────┘ 	  │
+    │                                                                 │
+    │  Table 1: patient_demographics_summary                          │
+    │   └─ Dimensional model (gender, state, race)                    │
+    │      Metrics: patient_count, avg_income, deceased_count         │
+    │                                                                 │
+    │  Table 2: healthcare_financial_metrics                          │
+    │   └─ Business KPIs                                              │
+    │      Metrics: expense_to_income_ratio, coverage_gap             │
+    │      Use case: CFO dashboard, financial planning                │
+    │                                                                 │
+    │  Table 3: patient_lifetime_analytics                            │
+    │   └─ Mortality & age analysis                                   │
+    │      Metrics: avg_current_age, avg_age_at_death                 │
+    │      Use case: Actuarial analysis, risk modeling                │
+    │                                                                 │
+    │  Table 4: data_quality_metrics                                  │
+    │   └─ Governance & audit                                         │
+    │      Metrics: completeness_pct, missing fields                  │
+    │      Use case: Data quality dashboard, compliance               │
+    │                                                                 │
+    └─────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+                            ORCHESTRATION TIMELINE
+════════════════════════════════════════════════════════════════════════════════
+
+Time    Event                           Duration    Downstream Impact
+────────────────────────────────────────────────────────────────────────────────
+00:00   File lands in Volume            -          Starts 300s wait timer
+00:05   Bronze job triggers             ~38s       Creates bronze.patient_raw
+                                                   Creates bronze.observation_raw
+02:00   Silver job scheduled run        ~2min      Updates silver.patients
+02:02   Gold job auto-triggers ⚡       ~1min      Creates 4 gold tables
+02:03   Pipeline complete               -          Data ready for dashboards
+────────────────────────────────────────────────────────────────────────────────
+
+════════════════════════════════════════════════════════════════════════════════
+                        PROFESSIONAL EXAM PATTERNS DEMONSTRATED
+════════════════════════════════════════════════════════════════════════════════
+
+✅ Multi-Hop Architecture (Bronze → Silver → Gold)
+   - Separation of concerns (raw, clean, business)
+   - Progressive transformation layers
+   - Audit trail at each layer
+
+✅ Event-Driven Orchestration
+   - File arrival triggers (Bronze)
+   - Table update triggers (Gold)
+   - Reduces latency, eliminates polling
+
+✅ Parallel Task Execution
+   - Independent entities ingest simultaneously
+   - Maximizes throughput
+   - Reduces total pipeline time
+
+✅ Defensive Programming Patterns
+   - try_cast() for type safety
+   - Schema validation before write
+   - Preview/validation flows
+   - WRITE_ENABLED flags
+
+✅ Production-Grade Features
+   - Retry logic (1 attempt per task)
+   - Email notifications (success/failure)
+   - Checkpointing (Auto Loader)
+   - Table optimization (OPTIMIZE, Z-order)
+
+✅ Data Quality Framework
+   - Quality flags at Silver layer
+   - Metrics table at Gold layer
+   - 100% completeness tracking
+   - Audit timestamps
+
+✅ Scalability
+   - Easy to add entities (add task)
+   - Modular job design
+   - Independent job scaling
+
+✅ Cost Optimization
+   - Serverless compute (auto-scaling)
+   - Incremental processing (Auto Loader)
+   - Delta format (compression, pruning)
+
+════════════════════════════════════════════════════════════════════════════════

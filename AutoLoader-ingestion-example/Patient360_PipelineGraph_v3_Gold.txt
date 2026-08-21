@@ -1,0 +1,154 @@
+╔══════════════════════════════════════════════════════════════════════════════════════════════════╗
+║                           PATIENT360 DATA PIPELINE ARCHITECTURE                                  ║
+║                          Professional Exam-Ready Medallion Pattern                               ║
+╚══════════════════════════════════════════════════════════════════════════════════════════════════╝
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  📂 DATA SOURCES (Unity Catalog Volumes)                                                        │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+                                          │
+                    ┌─────────────────────┴──────────────────────┐
+                    │                                             │
+            📄 patients*.csv                              📄 observations.csv
+       /Volumes/healthcare/bronze/raw_files/       /Volumes/healthcare/bronze/raw_files/
+                    │                                             │
+                    │                                             │
+                    ▼                                             ▼
+
+╔═════════════════════════════════════════════════════════════════════════════════════════════════╗
+║  🥉 BRONZE LAYER - Raw Data Ingestion (Schema-on-Read)                                         ║
+╠═════════════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                                  ║
+║  📓 02_Patient_AutoLoader                      📓 01_Bronze_Observation_Ingestion              ║
+║     • Auto Loader (Streaming)                      • Batch CSV Load                            ║
+║     • Schema inference                             • Schema inference                          ║
+║     • Checkpoint tracking                          • Quality validation (single-pass)          ║
+║     • availableNow trigger                         • Metadata tracking                         ║
+║     • 6 cells (Professional pattern)               • 5 cells (Professional pattern)            ║
+║           │                                              │                                      ║
+║           │  WRITES TO                                   │  WRITES TO                           ║
+║           ▼                                              ▼                                      ║
+║                                                                                                  ║
+║  📊 healthcare.bronze.patient_raw_auto      📊 healthcare.bronze.observation_raw              ║
+║     • 452 records                                • 114,342 records                             ║
+║     • source_file + ingestion_timestamp          • source_file + ingestion_timestamp           ║
+║     • Latest: 2026-08-05 05:35 AM                • Latest: 2026-08-05 05:48 AM                 ║
+║                                                                                                  ║
+╚═════════════════════════════════════════════════════════════════════════════════════════════════╝
+                    │                                             │
+                    │  🚀 JOB: Patient360_Bronze Auto Loader (203036644461754)                    │
+                    │     Trigger: File Arrival (/Volumes/healthcare/bronze/raw_files/)           │
+                    │     Tasks: ingest_patients || ingest_observations (parallel)                │
+                    │                                                                              │
+                    └─────────────────────┬──────────────────────┘
+                                          │
+                                          ▼
+
+╔═════════════════════════════════════════════════════════════════════════════════════════════════╗
+║  🥈 SILVER LAYER - Cleaned, Typed, Deduplicated (Schema-on-Write)                              ║
+╠═════════════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                                  ║
+║  📓 03_Silver_Patient_Transform                📓 03_Silver_Observation_Transform              ║
+║     • Type casting (STRING → DATE/INT)             • Type casting                              ║
+║     • Deduplication (window functions)             • Referential validation                    ║
+║     • Quality checks (single-pass)                 • Missing value handling                    ║
+║     • Processing metadata                          • Category validation                       ║
+║     • 16 cells                                     • Well-structured cells                     ║
+║           │                                              │                                      ║
+║           │  WRITES TO                                   │  WRITES TO                           ║
+║           ▼                                              ▼                                      ║
+║                                                                                                  ║
+║  📊 healthcare.silver.patients              📊 healthcare.silver.observations                 ║
+║     • 169 unique patients (deduplicated)         • 113,678 clean observations                 ║
+║     • 153 living, 16 deceased                    • Typed and validated                         ║
+║     • Typed columns (DATE, INT, DOUBLE)          • Quality flags applied                       ║
+║                                                                                                  ║
+╚═════════════════════════════════════════════════════════════════════════════════════════════════╝
+                    │                                             │
+                    │  🚀 JOB: Patient360_Silver_Transform (297943093918080)                      │
+                    │     Trigger: Updates to Bronze tables                                       │
+                    │     Tasks: transform_patients, transform_observations                       │
+                    │                                                                              │
+                    └─────────────────────┬──────────────────────┘
+                                          │
+                                          ▼
+
+╔═════════════════════════════════════════════════════════════════════════════════════════════════╗
+║  🥇 GOLD LAYER - Business-Ready Aggregates (Star Schema / Dimensional Models)                  ║
+╠═════════════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                                  ║
+║  📓 04_Gold_Comprehensive_Metrics                                                               ║
+║     • Multi-entity joins (patients + observations)                                              ║
+║     • Business KPIs and metrics                                                                 ║
+║     • Aggregation patterns (GROUP BY, window functions)                                         ║
+║     • Dimensional modeling (facts vs dimensions)                                                ║
+║     • 20 cells (Professional documentation)                                                     ║
+║           │                                                                                      ║
+║           │  WRITES TO (8 GOLD TABLES)                                                          ║
+║           ▼                                                                                      ║
+║                                                                                                  ║
+║  ┌─────────────────────────────────────────────────────────────────────────────────────────┐  ║
+║  │  1️⃣  patient_demographics_summary (125 records)                                          │  ║
+║  │      Demographics grouped by gender, race, marital status, geography                     │  ║
+║  │                                                                                           │  ║
+║  │  2️⃣  healthcare_financial_metrics (14 records)                                           │  ║
+║  │      Financial KPIs: expenses, income, coverage gaps by demographics                     │  ║
+║  │                                                                                           │  ║
+║  │  3️⃣  patient_lifetime_analytics (16 records)                                             │  ║
+║  │      Age calculations, lifespan statistics, living vs deceased metrics                   │  ║
+║  │                                                                                           │  ║
+║  │  4️⃣  data_quality_metrics (1 record)                                                     │  ║
+║  │      Pipeline health: 100% completeness, 0 quality issues                                │  ║
+║  │                                                                                           │  ║
+║  │  5️⃣  patient_clinical_summary (113 records)                                              │  ║
+║  │      Patient-level clinical metrics: observation counts, categories, date ranges         │  ║
+║  │                                                                                           │  ║
+║  │  6️⃣  vital_signs_analytics (128 records)                                                 │  ║
+║  │      Aggregated vital signs: BMI, weight, height statistics by demographics              │  ║
+║  │                                                                                           │  ║
+║  │  7️⃣  observation_type_distribution (244 records)                                         │  ║
+║  │      Observation category distribution and trends over time                              │  ║
+║  │                                                                                           │  ║
+║  │  8️⃣  clinical_risk_indicators (208 records)                                              │  ║
+║  │      Risk flags: abnormal vitals, missing data, clinical alerts                          │  ║
+║  └─────────────────────────────────────────────────────────────────────────────────────────┘  ║
+║                                                                                                  ║
+╚═════════════════════════════════════════════════════════════════════════════════════════════════╝
+                                          │
+                    🚀 JOB: Patient360_Gold_Metrics (565287339316173)
+                       Trigger: Updates to Silver.patients AND Silver.observations
+                       Task: 04_Gold_Comprehensive_Metrics (single consolidated notebook)
+                                          │
+                                          ▼
+                            ┌─────────────────────────┐
+                            │  📊 BI DASHBOARDS       │
+                            │  📈 ANALYTICS           │
+                            │  🤖 ML MODELS           │
+                            │  📋 REPORTS             │
+                            └─────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  🎯 PIPELINE CHARACTERISTICS                                                                    │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  ✅ Professional Exam-Ready Patterns    ✅ Metadata Tracking (source_file + timestamps)        │
+│  ✅ Single-Pass Quality Validation      ✅ 100% Data Completeness                              │
+│  ✅ Defensive Write Patterns            ✅ Star Schema Gold Layer                              │
+│  ✅ Proper Deduplication (Silver)       ✅ Multi-Entity Join Optimization                      │
+│  ✅ File Arrival Triggers (Bronze)      ✅ Table Update Triggers (Silver → Gold)               │
+│  ✅ Parallel Task Execution             ✅ Production-Ready Job Orchestration                  │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────────────────────────┐
+│  📈 DATA VOLUME METRICS                                                                         │
+├─────────────────────────────────────────────────────────────────────────────────────────────────┤
+│  Bronze → Silver → Gold Data Reduction:                                                         │
+│    • Patients:      452 raw → 169 unique → 113 with clinical data (75% reduction)              │
+│    • Observations:  114,342 raw → 113,678 clean → 8 aggregate tables (99.9% compression)       │
+│                                                                                                  │
+│  Pipeline Efficiency:                                                                           │
+│    • Bronze: 25 cells → 11 cells (-56% after refactoring)                                      │
+│    • Silver: Already optimized (single-pass aggregations)                                      │
+│    • Gold: 20 cells, 8 tables (comprehensive business metrics)                                 │
+│                                                                                                  │
+│  Last Updated: 2026-08-05 05:51 AM                                                              │
+└─────────────────────────────────────────────────────────────────────────────────────────────────┘

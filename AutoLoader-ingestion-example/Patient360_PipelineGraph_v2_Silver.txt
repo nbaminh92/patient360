@@ -1,0 +1,325 @@
+
+════════════════════════════════════════════════════════════════════════════════
+                    PATIENT360 COMPLETE PIPELINE GRAPH (v2)
+              Professional-Level Multi-Entity Medallion Architecture
+                        ✨ WITH SILVER LAYER ENHANCEMENT ✨
+════════════════════════════════════════════════════════════════════════════════
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 0: SOURCE DATA (Unity Catalog Volume)                                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    📁 /Volumes/healthcare/bronze/raw_files/
+         ├─ patient.csv         (113 records)
+         └─ observation.csv     (ready for ingestion)
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 1: BRONZE - Raw Ingestion (Auto Loader Pattern)                       │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    🔔 TRIGGER: FILE ARRIVAL
+        Watch: /Volumes/healthcare/bronze/raw_files/
+        Wait: 300s after last change
+        Status: ACTIVE
+        
+    📦 JOB: Patient360_Bronze Auto Loader (ID: 203036644461754)
+    ├─────────────────────────────────────────────────────────────────┐
+    │                                                                   │
+    │   ┌─────────────────────┐        ┌──────────────────────┐      │
+    │   │ Task:               │        │ Task:                │      │
+    │   │ ingest_patients     │        │ ingest_observations  │      │
+    │   │                     │        │                      │      │
+    │   │ ⏱ Runtime: ~38s     │        │ ⏱ Runtime: TBD       │      │
+    │   │ Retry: 1            │        │ Retry: 1             │      │
+    │   │ Email: ✅           │        │ Email: ✅            │      │
+    │   │ Status: ✅ SUCCESS  │        │ Status: ✅ SUCCESS   │      │
+    │   └──────────┬──────────┘        └──────────┬───────────┘      │
+    │              │                               │                  │
+    │              ▼                               ▼                  │
+    │   📊 bronze.patient_raw         📊 bronze.observation_raw      │
+    │      Schema: Auto-inferred          Schema: Auto-inferred      │
+    │      Format: Delta                  Format: Delta              │
+    │      Mode: Append                   Mode: Append               │
+    │      Records: 113                   Records: Pending            │
+    │                                                                 │
+    └─────────────────────────────────────────────────────────────────┘
+              │                                      │
+              └───────────────┬──────────────────────┘
+                              │
+                    Both Bronze Tasks Complete
+                              │
+                              ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 2: SILVER - Cleaned & Typed ✨ ENHANCED WITH 2 PARALLEL TASKS        │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ⏰ TRIGGER: SCHEDULED
+        Cron: Daily at 2:00 AM (Australia/Sydney)
+        Status: ACTIVE
+        Last 5 runs: ✅ ALL SUCCESS
+        Avg runtime: ~60 seconds
+    
+    📦 JOB: Patient360_Silver_Transform (ID: 297943093918080)
+         🔴 CURRENTLY RUNNING: Run #791372470707868
+    ├─────────────────────────────────────────────────────────────────┐
+    │                                                                   │
+    │   ┌──────────────────────────┐    ┌──────────────────────────┐ │
+    │   │ Task:                    │    │ Task:                    │ │
+    │   │ silver_transform         │    │ silver_observations ✨   │ │
+    │   │ (PATIENTS)               │    │ (OBSERVATIONS)           │ │
+    │   │                          │    │                          │ │
+    │   │ Notebook:                │    │ Notebook:                │ │
+    │   │ 03_Silver_Patient_       │    │ 03_Silver_Observation_   │ │
+    │   │    Transform             │    │    Transform             │ │
+    │   │                          │    │                          │ │
+    │   │ Transformations:         │    │ Transformations:         │ │
+    │   │  ✅ try_cast()           │    │  ✅ try_cast()           │ │
+    │   │  ✅ Deduplication        │    │  ✅ Deduplication        │ │
+    │   │  ✅ Quality flags        │    │  ✅ Quality flags        │ │
+    │   │  ✅ Schema validation    │    │  ✅ Schema validation    │ │
+    │   │  ✅ Defensive write      │    │  ✅ Defensive write      │ │
+    │   │  ✅ OPTIMIZE             │    │  ✅ OPTIMIZE             │ │
+    │   │                          │    │                          │ │
+    │   │ Status: ⏳ RUNNING       │    │ Status: ⏳ RUNNING       │ │
+    │   └────────────┬─────────────┘    └────────────┬─────────────┘ │
+    │                │                                │               │
+    │                ▼                                ▼               │
+    │   📊 silver.patients            📊 silver.observations         │
+    │      Records: 113                   Records: Pending            │
+    │      Quality: 100% clean            Quality: TBD                │
+    │      Format: Delta                  Format: Delta               │
+    │      Features: OPTIMIZED            Features: OPTIMIZED         │
+    │                                                                 │
+    └─────────────────────────────────────────────────────────────────┘
+              │                                      │
+              └───────────────┬──────────────────────┘
+                              │
+                  Either Table Update Detected ⚡
+                              │
+                              ▼
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ LAYER 3: GOLD - Business Metrics (Dimensional & KPI Tables)                 │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+    ⚡ TRIGGER: TABLE UPDATE (Event-Driven)
+        Watch: silver.patients
+        Watch: silver.observations (future enhancement)
+        Status: ACTIVE
+    
+    📦 JOB: Patient360_Gold_Metrics (ID: 565287339316173)
+    ├─────────────────────────────────────────────────────────────────┐
+    │                                                                   │
+    │   ┌──────────────────────────────────────────────────────┐     │
+    │   │ Task: gold_metrics                                    │     │
+    │   │                                                        │     │
+    │   │ Notebook: 04_Gold_Patient_Metrics                     │     │
+    │   │                                                        │     │
+    │   │ Last run: ✅ SUCCESS                                  │     │
+    │   └────────────────────────┬───────────────────────────────┘     │
+    │                            │                                     │
+    │                            ▼                                     │
+    │              ┌─────────────────────────┐                        │
+    │              │    4 GOLD TABLES        │                        │
+    │              └─────────────────────────┘                        │
+    │                            │                                     │
+    │           ┌────────────────┼────────────────┬─────────┐        │
+    │           │                │                │         │        │
+    │           ▼                ▼                ▼         ▼        │
+    │  ┌────────────────┐ ┌────────────┐ ┌──────────┐ ┌─────────┐ │
+    │  │ demographics   │ │ financial  │ │ lifetime │ │ quality │ │
+    │  │   _summary     │ │  _metrics  │ │_analytics│ │_metrics │ │
+    │  └────────────────┘ └────────────┘ └──────────┘ └─────────┘ │
+    │                                                                 │
+    │  Table 1: patient_demographics_summary                         │
+    │   └─ Dimensional model (gender, state, race)                   │
+    │      Metrics: patient_count, avg_income, deceased_count        │
+    │      Records: Multiple aggregated rows                         │
+    │                                                                 │
+    │  Table 2: healthcare_financial_metrics                         │
+    │   └─ Business KPIs                                             │
+    │      Metrics: expense_to_income_ratio, coverage_gap            │
+    │      Use case: CFO dashboard, financial planning               │
+    │      Records: Multiple aggregated rows                         │
+    │                                                                 │
+    │  Table 3: patient_lifetime_analytics                           │
+    │   └─ Mortality & age analysis                                  │
+    │      Metrics: avg_current_age, avg_age_at_death                │
+    │      Use case: Actuarial analysis, risk modeling               │
+    │      Records: Multiple aggregated rows                         │
+    │                                                                 │
+    │  Table 4: data_quality_metrics                                 │
+    │   └─ Governance & audit                                        │
+    │      Metrics: completeness_pct, missing fields                 │
+    │      Use case: Data quality dashboard, compliance              │
+    │      Records: 1 (snapshot)                                     │
+    │                                                                 │
+    │  🔮 FUTURE: Cross-entity Gold tables                           │
+    │   └─ patient_observation_health_profile                        │
+    │      JOIN silver.patients + silver.observations                │
+    │      Metrics: observations_per_patient, avg_values, etc.       │
+    │                                                                 │
+    └─────────────────────────────────────────────────────────────────┘
+
+════════════════════════════════════════════════════════════════════════════════
+                            ORCHESTRATION TIMELINE (v2)
+════════════════════════════════════════════════════════════════════════════════
+
+Time    Event                           Duration    Entities Processed
+────────────────────────────────────────────────────────────────────────────────
+00:00   Files land in Volume            -          patient.csv, observation.csv
+00:05   Bronze job triggers             ~38s       ✅ 2 entities (parallel)
+        ├─ ingest_patients              ~38s       → bronze.patient_raw
+        └─ ingest_observations          TBD        → bronze.observation_raw
+
+02:00   Silver job scheduled run        ~60s       ✅ 2 entities (parallel) ✨
+        ├─ silver_transform             ~60s       → silver.patients
+        └─ silver_observations ✨       TBD        → silver.observations
+
+02:01   Gold job auto-triggers ⚡       ~1min      4 tables created
+        └─ gold_metrics                            → 4 Gold tables
+
+02:02   Pipeline complete               -          Ready for dashboards
+────────────────────────────────────────────────────────────────────────────────
+
+Total End-to-End Latency: ~2 minutes (Bronze → Silver → Gold)
+Parallel Processing Benefit: Tasks run simultaneously (not sequentially)
+
+════════════════════════════════════════════════════════════════════════════════
+                    TASK DEPENDENCY GRAPH (Detailed View)
+════════════════════════════════════════════════════════════════════════════════
+
+LAYER 1: BRONZE (File Arrival Trigger)
+────────────────────────────────────────────────────────────────────────────────
+         ingest_patients          ingest_observations
+              │                           │
+              │  No dependencies          │  No dependencies
+              │  (parallel)               │  (parallel)
+              ├───────────┬───────────────┘
+              │           │
+              ▼           ▼
+     bronze.patient_raw  bronze.observation_raw
+
+
+LAYER 2: SILVER (Scheduled 2:00 AM) ✨ ENHANCED
+────────────────────────────────────────────────────────────────────────────────
+        silver_transform        silver_observations ✨
+              │                           │
+              │  No dependencies          │  No dependencies
+              │  (parallel)               │  (parallel)
+              ├───────────┬───────────────┘
+              │           │
+              ▼           ▼
+      silver.patients    silver.observations
+
+
+LAYER 3: GOLD (Table Update Trigger ⚡)
+────────────────────────────────────────────────────────────────────────────────
+              gold_metrics
+                   │
+                   │  Triggered by ANY table update
+                   │  (silver.patients OR silver.observations)
+                   │
+                   ▼
+         ┌─────────┴─────────┬─────────┬─────────┐
+         │                   │         │         │
+         ▼                   ▼         ▼         ▼
+    demographics      financial   lifetime   quality
+     _summary          _metrics   _analytics _metrics
+
+
+════════════════════════════════════════════════════════════════════════════════
+                PROFESSIONAL EXAM PATTERNS DEMONSTRATED (v2)
+════════════════════════════════════════════════════════════════════════════════
+
+✅ Multi-Hop Architecture (Bronze → Silver → Gold)
+   - Clear separation of concerns across layers
+   - Progressive refinement (raw → clean → business)
+   - Audit trail preserved at each layer
+
+✅ Multi-Entity Processing ✨ ENHANCED
+   - 2 entities across Bronze and Silver layers
+   - Parallel processing within each layer
+   - Independent failure handling per entity
+   - Consistent transformation patterns
+
+✅ Layer-Based Job Design (Professional Best Practice)
+   - 1 job per layer (Bronze, Silver, Gold)
+   - Multiple tasks per job (all entities in layer)
+   - Simplified monitoring (3 jobs instead of 6+)
+   - Easy to add more entities (just add tasks)
+
+✅ Event-Driven Orchestration
+   - File arrival triggers Bronze ingestion
+   - Table update triggers Gold refresh
+   - Eliminates polling and reduces latency
+   - Auto-cascade through layers
+
+✅ Parallel Task Execution
+   - Bronze: 2 tasks run simultaneously
+   - Silver: 2 tasks run simultaneously ✨
+   - Total time = longest task (not sum)
+   - Maximizes throughput
+
+✅ Defensive Programming Patterns
+   - try_cast() prevents casting errors
+   - Schema validation before writes
+   - Preview flows (WRITE_ENABLED flags)
+   - Quality flags for governance
+
+✅ Production-Grade Features
+   - Retry logic (1 attempt per task)
+   - Email notifications (success/failure)
+   - Auto Loader checkpointing
+   - Delta table optimization (OPTIMIZE)
+   - Serverless compute (auto-scaling)
+
+✅ Data Quality Framework
+   - Quality flags at Silver (missing_*, has_quality_issue)
+   - Metrics table at Gold (data_quality_metrics)
+   - 100% completeness tracking
+   - Audit timestamps
+
+✅ Scalability & Extensibility
+   - Add entity = add 2 tasks (Bronze + Silver)
+   - Modular job design
+   - Independent job scaling
+   - No code duplication (shared patterns)
+
+✅ Cost Optimization
+   - Serverless compute (pay per use)
+   - Incremental processing (Auto Loader)
+   - Event-driven triggers (no wasteful polling)
+   - Delta optimizations (compression, pruning)
+
+════════════════════════════════════════════════════════════════════════════════
+                        CURRENT STATUS (Live)
+════════════════════════════════════════════════════════════════════════════════
+
+📍 YOU ARE HERE: Watching Silver Job Run #791372470707868
+
+Current Status:
+├─ silver_transform (patients)      → ⏳ RUNNING (expected ~60s)
+└─ silver_observations (NEW!) ✨    → ⏳ RUNNING (first run)
+
+Next Steps After This Run:
+1. Verify silver.observations table created successfully
+2. Check data quality metrics (missing values, clean records)
+3. Optionally enhance Gold to include observation analytics
+4. Set WRITE_ENABLED = True in observation notebook if in preview mode
+
+════════════════════════════════════════════════════════════════════════════════
+                    KEY METRICS SUMMARY
+════════════════════════════════════════════════════════════════════════════════
+
+Total Jobs:           3 (Bronze, Silver, Gold)
+Total Tasks:          5 (2 Bronze, 2 Silver ✨, 1 Gold)
+Total Tables:         9 (2 Bronze, 2 Silver ✨, 4 Gold, 1 Source)
+Entities Processed:   2 (patients, observations ✨)
+End-to-End Latency:   ~2 minutes (all layers)
+Data Quality:         100% (patients), TBD (observations)
+Parallel Efficiency:  50% time savings vs sequential
+
+════════════════════════════════════════════════════════════════════════════════
