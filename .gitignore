@@ -44,3 +44,6 @@ Thumbs.db
 .venv
 env/
 venv/
+
+# Notebook outputs
+*.ipynb_checkpoints/
